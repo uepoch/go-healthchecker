@@ -16,23 +16,27 @@ import (
 	"github.com/sirupsen/logrus"
 	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
 
+	"strings"
+
 	flag "github.com/spf13/pflag"
 )
 
 var (
-	urls    []string
-	defUrl  string
-	ip      string
-	host    string
-	verbose bool
-	secure  bool
-	timeout time.Duration
-	proto   string
+	urls          []string
+	defUrl        string
+	ip            string
+	host          string
+	verbose       bool
+	secure        bool
+	timeout       time.Duration
+	customHeaders []string
+	proto         string
 )
 
 func main() {
 	flag.StringVar(&defUrl, "default-url", "/lb_status", "Override the default URL")
 	flag.StringArrayVarP(&urls, "url", "u", nil, "List of custom healthcheck that will be called on IP with HOST Host header")
+	flag.StringArrayVarP(&customHeaders, "header", "k", nil, "List of headers injected with custom url checks.")
 	flag.StringVarP(&ip, "ip", "i", "127.0.0.1", "IP to use with healthchecks")
 	flag.BoolVarP(&secure, "https", "s", false, "Use Https when calling endpoints")
 	flag.StringVarP(&host, "host", "H", "", "HOST to use when calling custom healthchecks")
@@ -85,6 +89,13 @@ func main() {
 			}
 			req.WithContext(ctx)
 			req.Host = host
+			for _, head := range customHeaders {
+				s := strings.Split(head, ":")
+				if len(s) != 2 {
+					l.Fatalf("Error during the Headers parsing, please check: '%s'", head)
+				}
+				req.Header.Set(strings.TrimSpace(s[0]), strings.TrimSpace(s[1]))
+			}
 			res, err := client.Do(req)
 			if err != nil {
 				cancel()
