@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/syslog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"fmt"
@@ -51,12 +52,15 @@ func main() {
 
 	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host})
 	l.Debugln("Starting: Hello world")
-	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 
-	if err == nil {
-		logrus.StandardLogger().Hooks.Add(hook)
-	} else {
-		l.Warnf("Can't connect to syslog: %s", err.Error())
+	if logrus.IsTerminal(os.Stderr) {
+		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, filepath.Base(os.Args[0]))
+
+		if err == nil {
+			logrus.StandardLogger().Hooks.Add(hook)
+		} else {
+			l.Warnf("Can't connect to syslog: %s", err.Error())
+		}
 	}
 
 	client := http.Client{Timeout: timeout}
