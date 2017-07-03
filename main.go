@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/syslog"
 	"net/http"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
+
 	flag "github.com/spf13/pflag"
 )
 
@@ -32,7 +35,7 @@ func main() {
 	flag.StringVarP(&ip, "ip", "i", "127.0.0.1", "IP to use with healthchecks")
 	flag.BoolVarP(&secure, "https", "s", false, "Use Https when calling endpoints")
 	flag.StringVarP(&host, "host", "H", "", "HOST to use when calling custom healthchecks")
-	flag.BoolVarP(&verbose, "debug", "v", true, "Verbose output")
+	flag.BoolVarP(&verbose, "debug", "v", false, "Verbose output")
 	flag.DurationVarP(&timeout, "timeout", "t", 1*time.Second, "Set the timeout for calls before returning")
 
 	flag.Parse()
@@ -48,6 +51,13 @@ func main() {
 
 	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host})
 	l.Debugln("Starting: Hello world")
+	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+
+	if err == nil {
+		logrus.StandardLogger().Hooks.Add(hook)
+	} else {
+		l.Warnf("Can't connect to syslog: %s", err.Error())
+	}
 
 	client := http.Client{Timeout: timeout}
 
@@ -64,7 +74,11 @@ func main() {
 	for _, url := range urls {
 
 		go func(url string) {
-			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, url), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, url), nil)
+			if err != nil {
+				l.Fatalf("Error during req initialization: %s", err.Error())
+				os.Exit(2)
+			}
 			req.WithContext(ctx)
 			req.Host = host
 			res, err := client.Do(req)
@@ -102,6 +116,6 @@ func main() {
 
 	}()
 	wg.Wait()
-	l.Infoln("Success !")
+	l.Infoln("OK")
 
 }
