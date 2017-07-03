@@ -22,19 +22,21 @@ import (
 )
 
 var (
-	urls          []string
-	defUrl        string
-	ip            string
-	host          string
-	verbose       bool
-	secure        bool
-	timeout       time.Duration
-	customHeaders []string
-	proto         string
+	urls                []string
+	defUrl              string
+	ip                  string
+	host                string
+	verbose             bool
+	disableDefaultCheck bool
+	secure              bool
+	timeout             time.Duration
+	customHeaders       []string
+	proto               string
 )
 
 func main() {
 	flag.StringVar(&defUrl, "default-url", "/lb_status", "Override the default URL")
+	flag.BoolVarP(&disableDefaultCheck, "disable-default", "d", false, "Use this when you only need custom checks")
 	flag.StringArrayVarP(&urls, "url", "u", nil, "List of custom healthcheck that will be called on IP with HOST Host header")
 	flag.StringArrayVarP(&customHeaders, "header", "k", nil, "List of headers injected with custom url checks.")
 	flag.StringVarP(&ip, "ip", "i", "127.0.0.1", "IP to use with healthchecks")
@@ -54,7 +56,7 @@ func main() {
 		proto = "http"
 	}
 
-	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host})
+	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host, "headers": customHeaders})
 	l.Debugln("Starting: Hello world")
 
 	if logrus.IsTerminal(os.Stderr) {
@@ -71,7 +73,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	wg := sync.WaitGroup{}
-	wg.Add(1 + len(urls))
+	wg.Add(len(urls))
 
 	time.AfterFunc(timeout, cancel)
 	time.AfterFunc(timeout*2, func() {
@@ -107,29 +109,34 @@ func main() {
 				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, url, res.StatusCode)
 				os.Exit(3)
 			}
+			l.Debugf("Call success: %s", fmt.Sprintf("%s://%s%s", proto, ip, url))
 			wg.Done()
 
 		}(url)
 	}
 
-	go func() {
-		proto = "http"
-		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, defUrl), nil)
-		req.WithContext(ctx)
-		res, err := client.Do(req)
-		if err != nil {
-			cancel()
-			l.Fatalf("Error during the call of %s://%s%s : %s", proto, ip, defUrl, err.Error())
-			os.Exit(2)
-		}
-		if res.StatusCode < 200 || res.StatusCode > 299 {
-			cancel()
-			l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, defUrl, res.StatusCode)
-			os.Exit(3)
-		}
-		wg.Done()
+	if !disableDefaultCheck {
+		wg.Add(1)
+		go func() {
+			proto = "http"
+			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, defUrl), nil)
+			req.WithContext(ctx)
+			res, err := client.Do(req)
+			if err != nil {
+				cancel()
+				l.Fatalf("Error during the call of %s://%s%s : %s", proto, ip, defUrl, err.Error())
+				os.Exit(2)
+			}
+			if res.StatusCode < 200 || res.StatusCode > 299 {
+				cancel()
+				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, defUrl, res.StatusCode)
+				os.Exit(3)
+			}
+			l.Debugf("Call success: %s", fmt.Sprintf("%s://%s%s", proto, ip, defUrl))
+			wg.Done()
 
-	}()
+		}()
+	}
 	wg.Wait()
 	l.Infoln("OK")
 
