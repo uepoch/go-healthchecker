@@ -26,6 +26,7 @@ var (
 	defUrl              string
 	ip                  string
 	host                string
+	userAgent           string
 	verbose             bool
 	disableDefaultCheck bool
 	secure              bool
@@ -39,6 +40,7 @@ func main() {
 	flag.BoolVarP(&disableDefaultCheck, "disable-default", "d", false, "Use this when you only need custom checks")
 	flag.StringArrayVarP(&urls, "url", "u", nil, "List of custom healthcheck that will be called on IP with HOST Host header")
 	flag.StringArrayVarP(&customHeaders, "header", "k", nil, "List of headers injected with custom url checks.")
+	flag.StringVar(&userAgent, "user-agent", "Healthchecker", "Use this to define user-agent used for calls")
 	flag.StringVarP(&ip, "ip", "i", "127.0.0.1", "IP to use with healthchecks")
 	flag.BoolVarP(&secure, "https", "s", false, "Use Https when calling endpoints")
 	flag.StringVarP(&host, "host", "H", "", "HOST to use when calling custom healthchecks")
@@ -91,6 +93,7 @@ func main() {
 			}
 			req.WithContext(ctx)
 			req.Host = host
+			req.Header.Set("User-Agent", userAgent)
 			for _, head := range customHeaders {
 				s := strings.Split(head, ":")
 				if len(s) != 2 {
@@ -104,6 +107,7 @@ func main() {
 				l.Fatalf("Error: %s", err.Error())
 				os.Exit(2)
 			}
+			defer res.Body.Close()
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				cancel()
 				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, url, res.StatusCode)
@@ -121,12 +125,14 @@ func main() {
 			proto = "http"
 			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, defUrl), nil)
 			req.WithContext(ctx)
+			req.Header.Set("User-Agent", userAgent)
 			res, err := client.Do(req)
 			if err != nil {
 				cancel()
 				l.Fatalf("Error during the call of %s://%s%s : %s", proto, ip, defUrl, err.Error())
 				os.Exit(2)
 			}
+			defer res.Body.Close()
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				cancel()
 				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, defUrl, res.StatusCode)
