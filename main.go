@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"log/syslog"
 	"net/http"
 	"path/filepath"
@@ -61,8 +62,8 @@ func main() {
 	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host, "headers": customHeaders})
 	l.Debugln("Starting: Hello world")
 
-	if logrus.IsTerminal(os.Stderr) {
-		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, filepath.Base(os.Args[0]))
+	if !logrus.IsTerminal(os.Stderr) {
+		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_WARNING, filepath.Base(os.Args[0]))
 
 		if err == nil {
 			logrus.StandardLogger().Hooks.Add(hook)
@@ -70,8 +71,11 @@ func main() {
 			l.Warnf("Can't connect to syslog: %s", err.Error())
 		}
 	}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 
-	client := http.Client{Timeout: timeout}
+	client := http.Client{Timeout: timeout, Transport: tr}
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	wg := sync.WaitGroup{}
@@ -122,7 +126,7 @@ func main() {
 	if !disableDefaultCheck {
 		wg.Add(1)
 		go func() {
-			proto = "http"
+			proto := "http"
 			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, defUrl), nil)
 			req.WithContext(ctx)
 			req.Header.Set("User-Agent", userAgent)
