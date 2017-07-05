@@ -59,7 +59,7 @@ func main() {
 		proto = "http"
 	}
 
-	l := logrus.WithFields(logrus.Fields{"urls": urls, "defaultUrl": defUrl, "ip": ip, "host": host, "headers": customHeaders})
+	l := logrus.WithFields(logrus.Fields{"ip": ip, "host": host, "headers": customHeaders})
 	l.Debugln("Starting: Hello world")
 
 	if !logrus.IsTerminal(os.Stderr) {
@@ -90,7 +90,9 @@ func main() {
 	for _, url := range urls {
 
 		go func(url string) {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, url), nil)
+			url = fmt.Sprintf("%s://%s%s", proto, ip, url)
+			l := l.WithField("url", url)
+			req, err := http.NewRequest(http.MethodGet, url, nil)
 			if err != nil {
 				l.Fatalf("Error during req initialization: %s", err.Error())
 				os.Exit(2)
@@ -114,10 +116,10 @@ func main() {
 			defer res.Body.Close()
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				cancel()
-				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, url, res.StatusCode)
+				l.Fatalf("Error Status-Code: %d", res.StatusCode)
 				os.Exit(3)
 			}
-			l.Debugf("Call success: %s", fmt.Sprintf("%s://%s%s", proto, ip, url))
+			l.Debugf("OK")
 			wg.Done()
 
 		}(url)
@@ -127,22 +129,24 @@ func main() {
 		wg.Add(1)
 		go func() {
 			proto := "http"
-			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", proto, ip, defUrl), nil)
+			url := fmt.Sprintf("%s://%s%s", proto, ip, defUrl)
+			l := l.WithField("url", url)
+			req, _ := http.NewRequest(http.MethodGet, url, nil)
 			req.WithContext(ctx)
 			req.Header.Set("User-Agent", userAgent)
 			res, err := client.Do(req)
 			if err != nil {
 				cancel()
-				l.Fatalf("Error during the call of %s://%s%s : %s", proto, ip, defUrl, err.Error())
+				l.Fatalf("Request Error: %s", err.Error())
 				os.Exit(2)
 			}
 			defer res.Body.Close()
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				cancel()
-				l.Fatalf("Error during the call of %s://%s%s : %d", proto, ip, defUrl, res.StatusCode)
+				l.Fatalf("Error Status-Code: %d", res.StatusCode)
 				os.Exit(3)
 			}
-			l.Debugf("Call success: %s", fmt.Sprintf("%s://%s%s", proto, ip, defUrl))
+			l.Debugf("OK", url)
 			wg.Done()
 
 		}()
