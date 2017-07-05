@@ -148,6 +148,6 @@ func main() {
 		}()
 	}
 	wg.Wait()
-	l.Infoln("OK")
+	l.Debugln("OK")
 
 }
