@@ -46,7 +46,7 @@ func main() {
 	flag.StringVar(&userAgent, "user-agent", "Healthchecker", "Use this to define user-agent used for calls")
 	flag.StringVarP(&ip, "ip", "i", "127.0.0.1", "IP to use with healthchecks")
 	flag.BoolVarP(&secure, "https", "s", false, "Use Https when calling endpoints")
-	flag.IntVarP(&retries, "retry", "r", 2, "Maximum retries for HTTP Get")
+	flag.IntVarP(&retries, "retry", "r", 2, "Maximum retries for HTTP Get on failure")
 	flag.DurationVar(&delayRetry, "delay", 500*time.Millisecond, "Time to wait before successive retries")
 	flag.StringVarP(&host, "host", "H", "", "HOST to use when calling custom healthchecks")
 	flag.BoolVarP(&verbose, "debug", "v", false, "Verbose output")
@@ -86,7 +86,9 @@ func main() {
 	wg.Add(len(urls))
 
 	// time.AfterFunc(timeout, cancel)
-	time.AfterFunc(timeout+time.Duration(retries)*delayRetry+300*time.Millisecond, func() {
+	// Timeout is calculed as (Max tries * timeout + delay) + a little processing time overhead
+	// e.g : for default values, timeout is (3 * 1,5s) + 100ms = 4,6 seconds if all tries timeout
+	time.AfterFunc(time.Duration(retries+1)*(delayRetry+timeout)+100*time.Millisecond, func() {
 		l.Fatalf("CRITICAL ERROR: Shouldn't be happening: Requests in unfinished state and not error")
 		os.Exit(4)
 	})
@@ -97,12 +99,13 @@ func main() {
 			var ok bool
 			url = fmt.Sprintf("%s://%s%s", proto, ip, url)
 			l := l.WithField("url", url)
-			for i := 0; i < retries; i++ {
+			for i := 0; i <= retries; i++ {
+				l := l.WithField("try", i)
 
 				req, err := http.NewRequest(http.MethodGet, url, nil)
 				if err != nil {
 					l.Fatalf("Error during req initialization: %s", err.Error())
-					os.Exit(2)
+					os.Exit(1)
 				}
 				req.WithContext(ctx)
 				req.Host = host
@@ -111,19 +114,18 @@ func main() {
 					s := strings.Split(head, ":")
 					if len(s) != 2 {
 						l.Fatalf("Error during the Headers parsing, please check: '%s'", head)
-						os.Exit(1)
 					}
 					req.Header.Set(strings.TrimSpace(s[0]), strings.TrimSpace(s[1]))
 				}
 				res, err := client.Do(req)
 				if err != nil {
-					l.Fatalf("Error: %s", err.Error())
+					l.Errorf("Error: %s", err.Error())
 					time.Sleep(delayRetry)
 					continue
 				}
 				defer res.Body.Close()
 				if res.StatusCode < 200 || res.StatusCode > 299 {
-					l.Fatalf("Error Status-Code: %d", res.StatusCode)
+					l.Errorf("Error Status-Code: %d", res.StatusCode)
 					time.Sleep(delayRetry)
 					continue
 				}
@@ -154,13 +156,13 @@ func main() {
 				req.Header.Set("User-Agent", userAgent)
 				res, err := client.Do(req)
 				if err != nil {
-					l.Fatalf("Request Error: %s", err.Error())
+					l.Errorf("Request Error: %s", err.Error())
 					time.Sleep(delayRetry)
 					continue
 				}
 				defer res.Body.Close()
 				if res.StatusCode < 200 || res.StatusCode > 299 {
-					l.Fatalf("Error Status-Code: %d", res.StatusCode)
+					l.Errorf("Error Status-Code: %d", res.StatusCode)
 					time.Sleep(delayRetry)
 					continue
 				}
