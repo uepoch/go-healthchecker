@@ -76,11 +76,12 @@ func main() {
 		}
 	}
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		TLSHandshakeTimeout: 500 * time.Millisecond,
+		MaxIdleConnsPerHost: 100,
 	}
 
 	client := http.Client{Timeout: timeout, Transport: tr}
-
 	ctx, cancel := context.WithCancel(context.TODO())
 	wg := sync.WaitGroup{}
 	wg.Add(len(urls))
@@ -151,6 +152,7 @@ func main() {
 			url := fmt.Sprintf("%s://%s%s", proto, ip, defUrl)
 			l := l.WithField("url", url)
 			for i := 0; i <= retries; i++ {
+				l := l.WithField("try", i)
 				req, _ := http.NewRequest(http.MethodGet, url, nil)
 				req.WithContext(ctx)
 				req.Header.Set("User-Agent", userAgent)
