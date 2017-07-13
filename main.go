@@ -23,6 +23,7 @@ import (
 )
 
 var (
+	version             = "master"
 	urls                []string
 	defUrl              string
 	ip                  string
@@ -50,9 +51,14 @@ func main() {
 	flag.DurationVar(&delayRetry, "delay", 500*time.Millisecond, "Time to wait before successive retries")
 	flag.StringVarP(&host, "host", "H", "", "HOST to use when calling custom healthchecks")
 	flag.BoolVarP(&verbose, "debug", "v", false, "Verbose output")
+	V := flag.BoolP("version", "V", false, "Display version.")
 	flag.DurationVarP(&timeout, "timeout", "t", 1*time.Second, "Set the timeout for calls before returning")
 
 	flag.Parse()
+
+	if *V {
+		fmt.Println(version)
+	}
 
 	if verbose {
 		logrus.SetLevel(logrus.DebugLevel)

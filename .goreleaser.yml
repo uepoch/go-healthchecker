@@ -1,0 +1,8 @@
+builds:
+  - binary: go-healthchecker
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
