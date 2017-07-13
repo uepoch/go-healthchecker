@@ -24,17 +24,15 @@ jobs:
       # specify any bash command here prefixed with `run: `
       - run: go get -v -t -d ./...
       - run: go test -v ./...
-      # - deploy:
-      #     name: Release code if Tag is present
-      #     command: |
-      #       if [[ "${CIRCLE_TAG}" == "v*" ]]; then
-      #         curl -sL https://git.io/goreleaser | bash;
-      #       fi
+      - deploy:
+          name: Release code if Tag is present
+          command: |
+            if [[ "${CIRCLE_TAG}" == "v*" ]]; then
+              rm ./go-healthchecker ; curl -sL https://git.io/goreleaser | bash;
+            fi
 
 
 deployment:
-  tag:
+  trigger_tag:
     tag: /v[0-9]+(\.[0-9]+)*(-.*)*/
-    owner: uepoch
-    commands:
-      - curl -sL https://git.io/goreleaser | bash
+#    owner: MolotovTv
