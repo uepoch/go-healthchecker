@@ -27,6 +27,7 @@ jobs:
       - deploy:
           name: Release code if Tag is present
           command: |
+            echo "$CIRCLE_TAG"
             if [[ "${CIRCLE_TAG}" == "v*" ]]; then
               rm ./go-healthchecker ; curl -sL https://git.io/goreleaser | bash;
             fi
