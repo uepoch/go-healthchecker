@@ -24,3 +24,9 @@ jobs:
       # specify any bash command here prefixed with `run: `
       - run: go get -v -t -d ./...
       - run: go test -v ./...
+      - deploy:
+          name: Maybe Deploy
+          command: |
+            if [[ "${CIRCLE_TAG}" == "v*" ]]; then
+              curl -sL https://git.io/goreleaser | bash;
+            fi
